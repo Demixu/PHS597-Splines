@@ -66,10 +66,33 @@ natural_cubic_func = function(x,knots_index){
 
 ### Smoothing Spline
 
-The basis is proved to be the same as  natural cubic spline
-Considering the penalized term, it is pretty the similar as a generalized ridge regression. We need to calculate the $\Omega$
-$f'$
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+The basis is proved to be the same as  natural cubic spline with knots exactly the same as our input X vector
+Considering the penalized term, it is pretty the similar as a generalized ridge regression. We need to firstly calculate the $\Omega(j,k)=\int N_j''(t)N_k''(t)dt$ and then get the solution to minimize RSS
+
+```{r}
+omega_matrix_func = function(x){
+  knots_index = sort(x)
+  basis = natural_cubic_func(x,knots_index)
+  N = length(x)
+  #N*N matrix
+  omega =matrix(0,nrow=N,ncol=N)
+  omega_0 = matrx(0,nrow=N-2,ncol=N-2)
+  knots_a = knots_index[K]
+  knots_b = knots_index[K-1]
+  for(i in 1:N-2){
+    for (j in i:N-2){
+      ##get the integration
+      
+    }
+  }
+}
+
+
+
+
+```
+
+
 
 
 
@@ -104,6 +127,10 @@ beta_bs = ols_estimate_beta(b_spline_basis,df_Y)
 fitted_bs = b_spline_basis%*%beta_bs
 bs_mat = cbind(df_X,fitted_bs)%>%as.data.frame()%>%mutate(method="B spline")
 colnames(bs_mat)[c(1,2)]=c("X_value","Y_value")
+
+ggplot() + 
+  geom_point(aes(x = df_X, y = df_Y), size = 1) +
+  geom_line(data = bs_mat, aes(x = X_value, y = Y_value))
 
 ```
 
