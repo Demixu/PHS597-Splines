@@ -1,0 +1,109 @@
+---
+title: "Splines"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+```
+
+### Cubic splines
+
+```{r }
+##shared function
+h_func = function(x,knot){
+  out=max(x,knot)-knot
+  return(out)
+}
+
+ols_estimate_beta = function(X,Y){
+  return(ginv(t(X)%*%X)%*%t(X)%*%Y)
+}
+
+##construct cubic spline basis
+cubic_spline_basis_func = function(x,knots_index){
+  N = length(x)
+  K = length(knots_index)#4+K intotal
+  basis = matrix(0,nrow=N,ncol=4+K)
+  for (i in 1:4){
+    basis[,i]=x^(i-1)
+  }
+ for (j in 1:K){
+   basis[,j+4]=sapply(x, h_func,knot=knots_index[j])^3
+ }
+   return(basis)
+}
+
+
+
+
+```
+
+### Natural Cubic Spline
+
+
+```{r pressure, echo=FALSE}
+natural_cubic_func = function(x,knots_index){
+  knots_index = sort(knots_index)
+  N = length(x)
+  K = length(knots_index)#4+K intotal
+  basis = matrix(0,nrow=N,ncol=K)
+  for (i in 1:2){
+    basis[,i]=x^(i-1)
+  }
+  knots_a = knots_index[K]
+  knots_b = knots_index[K-1]
+ for (j in 3:K-2){
+   A =(sapply(x, h_func,knot=knots_index[j])^3-sapply(x,h_func,knot=knots_a)^3)/(knots_index[j]-knots_a)
+  B =  (sapply(x, h_func,knot=knots_b)^3-sapply(x,h_func,knot=knots_a)^3)/(knots_b-knots_a)
+  basis[,j]=A-B
+ }
+   return(basis)
+}
+
+```
+
+### Smoothing Spline
+
+The basis is proved to be the same as  natural cubic spline
+Considering the penalized term, it is pretty the similar as a generalized ridge regression. We need to calculate the $\Omega$
+$f'$
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+```{r}
+df_X= rnorm(500,mean=0,sd=1)
+E = rnorm(500,mean=0,sd=1)
+df_Y = exp(df_X)/(1+exp(df_X))+E
+knots= c(0,-1,1)
+
+#cubic spline basis
+cubic_spline_basis = cubic_spline_basis_func(df_X,knots)
+beta_cs = ols_estimate_beta(cubic_spline_basis,df_Y)
+fitted_cs =cubic_spline_basis%*%ols_estimate_beta(cubic_spline_basis,df_Y)
+cs_mat = cbind(df_X,fitted_cs)%>%as.data.frame()%>%mutate(method="cubic spline")
+
+
+#natural cubic spline
+natural_cubic_basis = natural_cubic_func(df_X,knots)
+beta_nc = ols_estimate_beta(natural_cubic_basis,df_Y)
+fitted_nc =natural_cubic_basis%*%beta_nc
+nc_mat = cbind(df_X,fitted_nc)%>%as.data.frame()%>%mutate(method="natural spline")
+
+colnames(nc_mat)[c(1,2)]=c("X_value","Y_value")
+ggplot() + 
+  geom_point(aes(x = df_X, y = df_Y), size = 1) +
+  geom_line(data = nc_mat, aes(x = X_value, y = Y_value))
+
+##B splines
+library(splines)
+b_spline_basis<-bs(df_X,knots=knots)
+beta_bs = ols_estimate_beta(b_spline_basis,df_Y)
+fitted_bs = b_spline_basis%*%beta_bs
+bs_mat = cbind(df_X,fitted_bs)%>%as.data.frame()%>%mutate(method="B spline")
+colnames(bs_mat)[c(1,2)]=c("X_value","Y_value")
+
+```
+
