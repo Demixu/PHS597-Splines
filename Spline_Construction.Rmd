@@ -6,6 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(MASS)
+library(tidyverse)
 ```
 
 ### Cubic splines
@@ -70,24 +71,35 @@ The basis is proved to be the same as  natural cubic spline with knots exactly t
 Considering the penalized term, it is pretty the similar as a generalized ridge regression. We need to firstly calculate the $\Omega(j,k)=\int N_j''(t)N_k''(t)dt$ and then get the solution to minimize RSS
 
 ```{r}
-omega_matrix_func = function(x){
-  knots_index = sort(x)
-  basis = natural_cubic_func(x,knots_index)
-  N = length(x)
+omega_matrix_func = function(x_mat){
+  knots_index = sort(x_mat)
+  basis = natural_cubic_func(x_mat,knots_index)
+  N = length(x_mat)
+  K = length(x_mat)
   #N*N matrix
   omega =matrix(0,nrow=N,ncol=N)
-  omega_0 = matrx(0,nrow=N-2,ncol=N-2)
+  omega_0 = matrix(0,nrow=N-2,ncol=N-2)
   knots_a = knots_index[K]
   knots_b = knots_index[K-1]
-  for(i in 1:N-2){
-    for (j in i:N-2){
-      ##get the integration
-      
+  C =knots_b-knots_a
+  for(i in 1:(N-2)){
+    for (j in i:(N-2)){
+      ##get the integration from larger knot to K-1
+      integrate_1 = function(x){
+        36*(x-knots_index[i])*(x-knots_index[j])/(knots_index[j]-knots_a)*(knots_index[i]-knots_a)
+      }
+      ##get the integration from K-1knot to K not
+      integrate_2 = function(x){
+        (6*(x-knots_index[i])/(knots_index[i]-knots_a)-6*(x-knots_b)/C)*(6*(x-knots_index[j])/(knots_index[j]-knots_a)-6*(x-knots_b)/C)
+      }
+      kk = integrate(integrate_1,lower = knots_index[j], upper=knots_a)$value+integrate(integrate_2,lower=knots_b,upper=knots_a)$value
+      omega_0[i,j]=kk
     }
   }
+  omega_0 = omega_0+t(omega_0)-diag(omega_0) ##construct symmetric matrix
+  omega[3:N,3:N]=omega_0
+  return(omega)
 }
-
-
 
 
 ```
@@ -107,18 +119,28 @@ cubic_spline_basis = cubic_spline_basis_func(df_X,knots)
 beta_cs = ols_estimate_beta(cubic_spline_basis,df_Y)
 fitted_cs =cubic_spline_basis%*%ols_estimate_beta(cubic_spline_basis,df_Y)
 cs_mat = cbind(df_X,fitted_cs)%>%as.data.frame()%>%mutate(method="cubic spline")
+colnames(cs_mat)[c(1,2)]=c("X_value","Y_value")
 
 
 #natural cubic spline
 natural_cubic_basis = natural_cubic_func(df_X,knots)
 beta_nc = ols_estimate_beta(natural_cubic_basis,df_Y)
 fitted_nc =natural_cubic_basis%*%beta_nc
-nc_mat = cbind(df_X,fitted_nc)%>%as.data.frame()%>%mutate(method="natural spline")
+nc_mat = cbind(df_X,fitted_nc)%>%as.data.frame()%>%mutate(method="natural cubic spline")
 
 colnames(nc_mat)[c(1,2)]=c("X_value","Y_value")
-ggplot() + 
-  geom_point(aes(x = df_X, y = df_Y), size = 1) +
-  geom_line(data = nc_mat, aes(x = X_value, y = Y_value))
+
+
+##smoothing splines
+##suppose lambda = 58 
+smooth_spline_basis = natural_cubic_func(df_X,sort(df_X))
+ss = smooth_spline_basis
+lambda = 58
+beta_ss = ginv(t(ss)%*%ss+lambda*omega_matrix_func(df_X))%*%t(ss)%*%df_Y
+fitted_ss = smooth_spline_basis%*%beta_ss
+ss_mat = cbind(df_X,fitted_ss)%>%as.data.frame()%>%mutate(method="smoothing spline")
+
+colnames(ss_mat)[c(1,2)]=c("X_value","Y_value")
 
 ##B splines
 library(splines)
@@ -128,9 +150,12 @@ fitted_bs = b_spline_basis%*%beta_bs
 bs_mat = cbind(df_X,fitted_bs)%>%as.data.frame()%>%mutate(method="B spline")
 colnames(bs_mat)[c(1,2)]=c("X_value","Y_value")
 
+
+summary_mat = rbind(cs_mat,nc_mat,ss_mat,bs_mat)
+
 ggplot() + 
   geom_point(aes(x = df_X, y = df_Y), size = 1) +
-  geom_line(data = bs_mat, aes(x = X_value, y = Y_value))
+  geom_line(data = summary_mat, aes(x = X_value, y = Y_value,color=method))
 
 ```
 
